@@ -65,7 +65,7 @@ pub use frame::Frame;
 pub use library_info::{LibraryInfo, Symbol, SymbolTable};
 pub use markers::*;
 pub use process::ThreadHandle;
-pub use profile::{Profile, SamplingInterval, StringHandle};
+pub use profile::{Profile, SamplingInterval, StringHandle, CounterHandle};
 pub use reference_timestamp::ReferenceTimestamp;
 pub use thread::ProcessHandle;
 pub use timestamp::*;

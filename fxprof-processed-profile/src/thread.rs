@@ -20,6 +20,10 @@ use crate::{MarkerTiming, ProfilerMarker, Timestamp};
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct ProcessHandle(pub(crate) usize);
 
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
+pub struct CounterHandle(pub(crate) usize);
+
+
 #[derive(Debug)]
 pub struct Thread {
     process: ProcessHandle,

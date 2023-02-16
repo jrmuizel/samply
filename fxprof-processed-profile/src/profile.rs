@@ -104,10 +104,95 @@ pub struct Profile {
     pub(crate) kernel_libs: LibsWithRanges,
     pub(crate) categories: Vec<Category>, // append-only for stable CategoryHandles
     pub(crate) processes: Vec<Process>,   // append-only for stable ProcessHandles
+    pub(crate) counters: Vec<Counter>,
     pub(crate) threads: Vec<Thread>,      // append-only for stable ThreadHandles
     pub(crate) reference_timestamp: ReferenceTimestamp,
     pub(crate) string_table: GlobalStringTable,
     pub(crate) marker_schemas: FastHashMap<&'static str, MarkerSchema>,
+}
+
+#[derive(Debug)]
+struct CounterSamples {
+    time: Vec<Timestamp>,
+    number: Vec<u32>,
+    count: Vec<f64>,
+}
+
+impl CounterSamples { 
+    fn new() -> Self {
+        Self { time: Vec::new(), number: Vec::new(), count: Vec::new() }
+    }
+}
+
+#[derive(Debug)]
+pub struct Counter {
+    name: String,
+    category: String,
+    description: String,
+    pid: u32,
+    samples: CounterSamples
+}
+
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
+pub struct CounterHandle(pub(crate) usize);
+
+impl Counter {
+    fn new(name: &str, pid: u32) -> Self {
+        Counter { name: name.to_string(), category: "Memory".to_string(), description: "Amount of allocated memory".to_string(), pid, samples: CounterSamples::new() }
+    }
+}
+
+struct SerializableCounter<'a>(&'a Counter);
+
+struct SerializableCounterTable<'a>(&'a [Counter]);
+
+struct SerializableCounterSampleGroup<'a>(&'a Counter);
+
+struct SerializableCounterSamples<'a>(&'a Counter);
+
+impl<'a> Serialize for SerializableCounterSamples<'a> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let len = self.0.samples.time.len();
+        let mut map = serializer.serialize_map(None)?;
+    
+        map.serialize_entry("count", &self.0.samples.count)?;
+        map.serialize_entry("length", &len)?;
+        map.serialize_entry("number", &self.0.samples.number)?;
+        map.serialize_entry("time", &self.0.samples.time)?;
+        map.end()
+    }
+}
+
+impl<'a> Serialize for SerializableCounterSampleGroup<'a> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("samples", &SerializableCounterSamples(self.0))?;
+        map.end()
+    }
+}
+
+impl<'a> Serialize for SerializableCounter<'a> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("category", &self.0.category)?;
+        map.serialize_entry("name", &self.0.name)?;
+        map.serialize_entry("description", &self.0.description)?;
+        map.serialize_entry("mainThreadIndex", &0)?;
+        map.serialize_entry("pid", &self.0.pid)?;
+     
+        map.serialize_entry("sampleGroups", &[SerializableCounterSampleGroup(self.0)])?;
+        map.end()
+    }
+}
+
+impl<'a> Serialize for SerializableCounterTable<'a> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut list = serializer.serialize_seq(Some(self.0.len()))?;
+        for i in self.0 {
+            list.serialize_element(&SerializableCounter(i))?;
+        }
+        list.end()
+    }
 }
 
 impl Profile {
@@ -137,6 +222,7 @@ impl Profile {
                 color: CategoryColor::Grey,
                 subcategories: Vec::new(),
             }],
+            counters: Vec::new(),
         }
     }
 
@@ -179,6 +265,12 @@ impl Profile {
     pub fn add_process(&mut self, name: &str, pid: u32, start_time: Timestamp) -> ProcessHandle {
         let handle = ProcessHandle(self.processes.len());
         self.processes.push(Process::new(name, pid, start_time));
+        handle
+    }
+
+    pub fn add_counter(&mut self, name: &str, process: ProcessHandle) -> CounterHandle {
+        let handle = CounterHandle(self.counters.len());
+        self.counters.push(Counter::new(name, self.processes[process.0].pid()));
         handle
     }
 
@@ -300,6 +392,19 @@ impl Profile {
         self.threads[thread.0].add_sample(timestamp, stack_index, cpu_delta, weight);
     }
 
+
+    pub fn add_counter_sample(
+        &mut self,
+        counter: CounterHandle,
+        timestamp: Timestamp,
+        count: f64,
+        number: u32,
+    ) {
+        self.counters[counter.0].samples.time.push(timestamp);
+        self.counters[counter.0].samples.count.push(count);
+        self.counters[counter.0].samples.number.push(number);
+    }
+
     /// Add a sample with a CPU delta of zero. Internally, multiple consecutive
     /// samples with a delta of zero will be combined into one sample with an accumulated
     /// weight.
@@ -370,7 +475,7 @@ impl Serialize for Profile {
         map.serialize_entry("threads", &SerializableProfileThreadsProperty(self))?;
         map.serialize_entry("pages", &[] as &[()])?;
         map.serialize_entry("profilerOverhead", &[] as &[()])?;
-        map.serialize_entry("counters", &[] as &[()])?;
+        map.serialize_entry("counters", &SerializableCounterTable(&self.counters[..]))?;
         map.end()
     }
 }
