@@ -139,7 +139,7 @@ where
                 converter.handle_mmap(e);
             }
             EventRecord::Mmap2(e) => {
-                converter.handle_mmap2(e);
+                converter.handle_mmap2(e, last_timestamp);
             }
             EventRecord::ContextSwitch(e) => {
                 let common = match record.common_data() {

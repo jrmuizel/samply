@@ -10,7 +10,7 @@ use framehop::x86_64::UnwindRegsX86_64;
 use framehop::{FrameAddress, Module, ModuleSvmaInfo, ModuleUnwindData, TextByteData, Unwinder};
 use fxprof_processed_profile::{
     CategoryColor, CategoryPairHandle, CpuDelta, Frame, LibraryInfo, ProcessHandle, Profile,
-    ReferenceTimestamp, SamplingInterval, ThreadHandle, Timestamp,
+    ReferenceTimestamp, SamplingInterval, ThreadHandle, Timestamp, ProfilerMarker, MarkerSchema, MarkerLocation, MarkerSchemaField, MarkerDynamicField, MarkerFieldFormat,
 };
 use linux_perf_data::linux_perf_event_reader;
 use linux_perf_data::{AttributeDescription, DsoInfo, DsoKey};
@@ -29,6 +29,7 @@ use object::pe::{ImageNtHeaders32, ImageNtHeaders64};
 use object::read::pe::{ImageNtHeaders, ImageOptionalHeader, PeFile};
 use object::{FileKind, Object, ObjectSection, ObjectSegment, SectionKind};
 use samply_symbols::{debug_id_for_object, object, DebugIdExt};
+use serde_json::json;
 use wholesym::samply_symbols;
 use wholesym::samply_symbols::object::{U16, U64};
 
@@ -516,7 +517,7 @@ where
         }
     }
 
-    pub fn handle_mmap2(&mut self, e: Mmap2Record) {
+    pub fn handle_mmap2(&mut self, e: Mmap2Record, timestamp: u64) {
         if e.page_offset == 0 {
             self.check_for_pe_mapping(&e.path.as_slice(), e.address);
         }
@@ -527,6 +528,8 @@ where
             return;
         }
 
+        let process = self.processes.get_by_pid(e.pid, &mut self.profile);
+
         let path = e.path.as_slice();
         let build_id = match &e.file_id {
             Mmap2FileId::BuildId(build_id) => Some(&build_id[..]),
@@ -535,11 +538,53 @@ where
                     Some(dso_key) => dso_key,
                     None => return,
                 };
+                if let DsoKey::User{ file_name, full_path } = &dso_key {
+                    if file_name.starts_with("jitted-") && file_name.ends_with(".so") {
+                        if let Some(jit_symbol) = has_jit_symbol(full_path) {
+                            #[derive(Debug, Clone)]
+                            pub struct TextMarker(pub String);
+
+                            impl ProfilerMarker for TextMarker {
+                                const MARKER_TYPE_NAME: &'static str = "Text";
+
+                                fn json_marker_data(&self) -> serde_json::Value {
+                                    json!({
+                                        "type": Self::MARKER_TYPE_NAME,
+                                        "name": self.0
+                                    })
+                                }
+
+                                fn schema() -> MarkerSchema {
+                                    MarkerSchema {
+                                        type_name: Self::MARKER_TYPE_NAME,
+                                        locations: vec![MarkerLocation::MarkerChart, MarkerLocation::MarkerTable],
+                                        chart_label: Some("{marker.data.name}"),
+                                        tooltip_label: None,
+                                        table_label: Some("{marker.name} - {marker.data.name}"),
+                                        fields: vec![MarkerSchemaField::Dynamic(MarkerDynamicField {
+                                            key: "name",
+                                            label: "Details",
+                                            format: MarkerFieldFormat::String,
+                                            searchable: None,
+                                        })],
+                                    }
+                                }
+                            }
+
+                
+                            let timestamp = self.timestamp_converter.convert_time(timestamp);
+                            let timing =  MarkerTiming::Instant(timestamp);
+                            let thread = self.threads.get_by_tid(e.tid, process, false, &mut self.profile);
+                            self.profile.add_marker(thread, "Mmap", TextMarker(jit_symbol), 
+                        }
+                    }
+                }
                 self.build_ids.get(&dso_key).map(|db| &db.build_id[..])
             }
         };
 
-        let process = self.processes.get_by_pid(e.pid, &mut self.profile);
+
+
         if let Some(lib) = add_module_to_unwinder(
             &mut process.unwinder,
             &path,
