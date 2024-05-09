@@ -100,6 +100,7 @@ where
                 if let Some(name) = name.as_deref() {
                     profile.set_thread_name(main_thread_handle, name);
                 }
+                self.more_markers.add_thread_markers(profile, pid, main_thread_handle);
                 let main_thread_label_frame =
                     make_thread_label_frame(profile, name.as_deref(), pid, pid);
                 let (thread_recycler, jit_function_recycler) = if self.process_recycler.is_some() {
@@ -153,6 +154,8 @@ where
                 profile.add_process(&format!("<{pid}>"), pid as u32, fake_start_time);
             let main_thread_handle =
                 profile.add_thread(process_handle, pid as u32, fake_start_time, true);
+            self.more_markers.add_thread_markers(profile, pid, main_thread_handle);
+
             let main_thread_label_frame = make_thread_label_frame(profile, None, pid, pid);
             let (thread_recycler, jit_function_recycler) = if self.process_recycler.is_some() {
                 (

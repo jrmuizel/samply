@@ -221,7 +221,7 @@ where
         };
 
         let mut more_markers = MoreMarkers::new();
-        more_markers.read_from_file(Path::new("/Users/mstange/Downloads/perfetto-markers.txt"), timestamp_converter);
+        more_markers.read_from_file(Path::new("/tmp/perfetto-markers.txt"), timestamp_converter);
 
         Self {
             profile,

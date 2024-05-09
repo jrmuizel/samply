@@ -14,13 +14,13 @@ fn process_marker_span_line(
     timestamp_converter: &TimestampConverter,
 ) -> Option<(i32, Timestamp, Timestamp, String)> {
     let mut split = line.splitn(4, ' ');
-    let tid = split.next()?;
-    let start_time = split.next()?;
-    let end_time = split.next()?;
-    let name = split.next()?.to_owned();
-    if name.is_empty() {
-        return None;
-    }
+    let tid = split.next().unwrap();
+    let start_time = split.next().unwrap();
+    let end_time = split.next().unwrap();
+    let name = split.next().unwrap().to_owned();
+    //if name.is_empty() {
+    //    return panic!("flam");
+    //}
     let tid = tid.parse::<i32>().ok()?;
     let start_time = timestamp_converter.convert_time(start_time.parse::<u64>().ok()?);
     let end_time = timestamp_converter.convert_time(end_time.parse::<u64>().ok()?);
