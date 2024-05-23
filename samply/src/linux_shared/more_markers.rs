@@ -4,27 +4,36 @@ use fxprof_processed_profile::{CategoryHandle, MarkerTiming, Profile, ThreadHand
 
 use crate::shared::{process_sample_data::SimpleMarker, timestamp_converter::TimestampConverter};
 
+pub struct Marker {
+    tid: i32,
+    start: Timestamp,
+    end: Timestamp,
+    name: String,
+    value: String
+}
 
 pub struct MoreMarkers {
-    markers: Vec<(i32, Timestamp, Timestamp, String)>,
+    markers: Vec<Marker>,
 }
 
 fn process_marker_span_line(
     line: &str,
     timestamp_converter: &TimestampConverter,
-) -> Option<(i32, Timestamp, Timestamp, String)> {
-    let mut split = line.splitn(4, ' ');
+) -> Option<Marker> {
+    println!("{}", line);
+    let mut split = line.splitn(5, ' ');
     let tid = split.next().unwrap();
+    let name = split.next().unwrap().to_owned();
     let start_time = split.next().unwrap();
     let end_time = split.next().unwrap();
-    let name = split.next().unwrap().to_owned();
+    let value = split.next().unwrap().to_owned();
     //if name.is_empty() {
     //    return panic!("flam");
     //}
     let tid = tid.parse::<i32>().ok()?;
-    let start_time = timestamp_converter.convert_time(start_time.parse::<u64>().ok()?);
-    let end_time = timestamp_converter.convert_time(end_time.parse::<u64>().ok()?);
-    Some((tid, start_time, end_time, name))
+    let start = timestamp_converter.convert_time(start_time.parse::<u64>().ok()?);
+    let end = timestamp_converter.convert_time(end_time.parse::<u64>().ok()?);
+    Some(Marker {tid, start, end, name, value})
 }
 
 pub struct MarkerFile {
@@ -42,7 +51,7 @@ impl MarkerFile {
 }
 
 impl Iterator for MarkerFile {
-    type Item = (i32, Timestamp, Timestamp, String);
+    type Item = Marker;
 
     fn next(&mut self) -> Option<Self::Item> {
         let line = self.lines.next()?.ok()?;
@@ -67,8 +76,8 @@ impl MoreMarkers {
 
     pub fn add_thread_markers(&self, profile: &mut Profile, tid: i32, thread_handle: ThreadHandle) {
         let mut c = 0;
-        for marker in self.markers.iter().filter(|m| m.0 == tid) {
-            profile.add_marker(thread_handle, CategoryHandle::OTHER, "More", SimpleMarker(marker.3.clone()), MarkerTiming::Interval(marker.1, marker.2));
+        for marker in self.markers.iter().filter(|m| m.tid == tid) {
+            profile.add_marker(thread_handle, CategoryHandle::OTHER, &marker.name, SimpleMarker(marker.value.clone()), MarkerTiming::Interval(marker.start, marker.end));
             c += 1;
         }
         if c != 0 {
