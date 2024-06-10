@@ -81,6 +81,8 @@ pub struct ProfileCreationProps {
     pub coreclr: CoreClrProfileProps,
     /// Create markers for unknown events.
     pub unknown_event_markers: bool,
+    /// File to import markers from
+    pub marker_file: Option<String>,
 }
 
 /// Properties which are meaningful for launching and recording a fresh process.

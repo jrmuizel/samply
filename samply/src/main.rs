@@ -331,6 +331,11 @@ pub struct ProfileCreationArgs {
     #[cfg(target_os = "windows")]
     #[arg(long)]
     unknown_event_markers: bool,
+
+    /// Add markers from file
+    #[arg(long)]
+    marker_file: Option<String>
+
 }
 
 #[derive(Debug, Args)]
@@ -496,6 +501,7 @@ impl ImportArgs {
             unknown_event_markers: self.profile_creation_args.unknown_event_markers,
             #[cfg(not(target_os = "windows"))]
             unknown_event_markers: false,
+            marker_file: self.profile_creation_args.marker_file.clone(),
         }
     }
 
@@ -610,6 +616,7 @@ impl RecordArgs {
             unknown_event_markers: self.profile_creation_args.unknown_event_markers,
             #[cfg(not(target_os = "windows"))]
             unknown_event_markers: false,
+            marker_file: None,
         }
     }
 }

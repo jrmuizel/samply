@@ -221,7 +221,9 @@ where
         };
 
         let mut more_markers = MoreMarkers::new();
-        more_markers.read_from_file(Path::new("/tmp/perfetto-markers.txt"), timestamp_converter);
+        if let Some(marker_file) = &profile_creation_props.marker_file {
+            more_markers.read_from_file(Path::new(marker_file), timestamp_converter);
+        }
 
         Self {
             profile,
