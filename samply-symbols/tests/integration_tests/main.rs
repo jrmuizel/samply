@@ -627,3 +627,72 @@ fn compare_snapshot() {
 
     assert_eq!(output, expected);
 }
+
+#[test]
+fn relocatable_elf_object_with_dwarf5() {
+    // Regression test: Relocatable ELF .o files have DWARF sections with
+    // unresolved relocations that must be applied for symbol lookup to work.
+    // This is especially important for DWARF 5 which uses .debug_addr as
+    // an address indirection table that requires relocations.
+    let fixture_path = fixtures_dir()
+        .join("other")
+        .join("relocatable-elf-test.o");
+
+    let helper = Helper {
+        symbol_directory: fixture_path.parent().unwrap().to_path_buf(),
+    };
+    let symbol_manager = SymbolManager::with_helper(helper);
+    let symbol_map = futures::executor::block_on(
+        symbol_manager.load_symbol_map_from_location(FileLocationType(fixture_path), None)
+    )
+    .unwrap();
+
+    // The real test: verify that DWARF line information works for relocatable .o files
+    // Before the fix, relocations weren't applied and frames would be empty.
+
+    // Test function 'f' - the key assertion is that we GET frames with line numbers
+    let result = symbol_map
+        .lookup_sync(LookupAddress::Relative(0x0))
+        .unwrap();
+    let symbol_name = symbol_map.resolve_symbol_name(result.symbol.name);
+    eprintln!("Symbol at 0x0: {}", symbol_name);
+
+    // THE KEY TEST: Verify we get line number information
+    // Without relocation support, frames would be None or empty
+    let frames = result.frames.expect("Should have frame information with relocations applied");
+    let frames = match frames {
+        samply_symbols::FramesLookupResult::Available(frames) => frames,
+        _ => panic!("Expected available frames, got external reference"),
+    };
+    assert!(!frames.is_empty(), "Should have at least one frame with line info");
+
+    let first_frame = &frames[0];
+    assert!(
+        first_frame.line_number.is_some(),
+        "Should have line number (proves relocations are working)"
+    );
+    // Line 4 is where function 'f' starts in test.c
+    assert_eq!(
+        first_frame.line_number,
+        Some(4),
+        "Should resolve to correct source line"
+    );
+
+    // Also test function 'fk' at address 0x40
+    let result = symbol_map
+        .lookup_sync(LookupAddress::Relative(0x40))
+        .unwrap();
+
+    let frames = result.frames.expect("Should have frame information");
+    let frames = match frames {
+        samply_symbols::FramesLookupResult::Available(frames) => frames,
+        _ => panic!("Expected available frames"),
+    };
+    assert!(!frames.is_empty());
+
+    let first_frame = &frames[0];
+    assert!(first_frame.line_number.is_some());
+    // Line 7 is where function 'fk' starts in test.c
+    assert_eq!(first_frame.line_number, Some(7));
+}
+
