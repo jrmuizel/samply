@@ -480,9 +480,9 @@ pub struct ObjectSymbolMapInner<'a, Symbol, FC: FileContents + 'static, DDM> {
     list: SymbolList<'a, Symbol>,
     debug_id: DebugId,
     object_map: ObjectMap<'a>,
-    context: Option<Mutex<addr2line::Context<gimli::EndianSlice<'a, gimli::RunTimeEndian>>>>,
+    context: Option<Mutex<addr2line::Context<crate::dwarf::Relocate<'a, gimli::EndianSlice<'a, gimli::RunTimeEndian>>>>>,
     dwp_package:
-        Option<addr2line::gimli::DwarfPackage<gimli::EndianSlice<'a, gimli::RunTimeEndian>>>,
+        Option<addr2line::gimli::DwarfPackage<crate::dwarf::Relocate<'a, gimli::EndianSlice<'a, gimli::RunTimeEndian>>>>,
     svma_file_ranges: SvmaFileRanges,
     image_base_address: u64,
     dwo_dwarf_maker: &'a DDM,
@@ -805,8 +805,8 @@ pub struct ObjectSymbolMapInnerWrapper<'data, FC>(
 impl<'a, FC: FileContents + 'static> ObjectSymbolMapInnerWrapper<'a, FC> {
     pub fn new<'file, O, Symbol, DDM>(
         object_file: &'file O,
-        addr2line_context: Option<addr2line::Context<EndianSlice<'a, RunTimeEndian>>>,
-        dwp_package: Option<addr2line::gimli::DwarfPackage<EndianSlice<'a, RunTimeEndian>>>,
+        addr2line_context: Option<addr2line::Context<crate::dwarf::Relocate<'a, EndianSlice<'a, RunTimeEndian>>>>,
+        dwp_package: Option<addr2line::gimli::DwarfPackage<crate::dwarf::Relocate<'a, EndianSlice<'a, RunTimeEndian>>>>,
         debug_id: DebugId,
         function_start_addresses: Option<&[u32]>,
         function_end_addresses: Option<&[u32]>,
@@ -848,8 +848,8 @@ enum ExternalLookupRequest<FC> {
     UseThisMaybeAndReplyOrTellMeWhatElseYouNeed(Option<FC>),
 }
 
-type Dwarf<'a> =
-    addr2line::gimli::Dwarf<addr2line::gimli::EndianSlice<'a, addr2line::gimli::RunTimeEndian>>;
+pub(crate) type Dwarf<'a> =
+    addr2line::gimli::Dwarf<crate::dwarf::Relocate<'a, addr2line::gimli::EndianSlice<'a, addr2line::gimli::RunTimeEndian>>>;
 
 pub trait DwoDwarfMaker<FC> {
     fn add_dwo_and_make_dwarf(&self, file_contents: FC) -> Result<Option<Dwarf<'_>>, Error>;
@@ -892,9 +892,10 @@ where
 }
 
 impl ExternalFileAddressRef {
-    fn with_split_dwarf_load(load: &SplitDwarfLoad<EndianSlice<RunTimeEndian>>, svma: u64) -> Self {
-        let comp_dir = String::from_utf8_lossy(load.comp_dir.unwrap().slice()).to_string();
-        let path = String::from_utf8_lossy(load.path.unwrap().slice()).to_string();
+    fn with_split_dwarf_load(load: &SplitDwarfLoad<crate::dwarf::Relocate<'_, EndianSlice<RunTimeEndian>>>, svma: u64) -> Self {
+        use gimli::Reader;
+        let comp_dir = String::from_utf8_lossy(&load.comp_dir.as_ref().unwrap().to_slice().unwrap()).to_string();
+        let path = String::from_utf8_lossy(&load.path.as_ref().unwrap().to_slice().unwrap()).to_string();
         let dwo_id = load.dwo_id.0;
         ExternalFileAddressRef {
             file_ref: ExternalFileRef::ElfExternalDwo { comp_dir, path },
@@ -902,14 +903,15 @@ impl ExternalFileAddressRef {
         }
     }
 
-    fn matches_split_dwarf_load(&self, load: &SplitDwarfLoad<EndianSlice<RunTimeEndian>>) -> bool {
+    fn matches_split_dwarf_load(&self, load: &SplitDwarfLoad<crate::dwarf::Relocate<'_, EndianSlice<RunTimeEndian>>>) -> bool {
+        use gimli::Reader;
         match (&self.file_ref, &self.address_in_file) {
             (
                 ExternalFileRef::ElfExternalDwo { comp_dir, path },
                 ExternalFileAddressInFileRef::ElfDwo { dwo_id, .. },
             ) => {
-                Some(comp_dir.as_bytes()) == load.comp_dir.map(|r| r.slice())
-                    && Some(path.as_bytes()) == load.path.map(|r| r.slice())
+                load.comp_dir.as_ref().and_then(|r| r.to_slice().ok()) == Some(comp_dir.as_bytes().into())
+                    && load.path.as_ref().and_then(|r| r.to_slice().ok()) == Some(path.as_bytes().into())
                     && *dwo_id == load.dwo_id.0
             }
             _ => false,

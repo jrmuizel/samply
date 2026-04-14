@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use debugid::DebugId;
 use elsa::sync::FrozenVec;
-use gimli::{CieOrFde, Dwarf, EhFrame, EndianSlice, RunTimeEndian, UnwindSection};
+use gimli::{CieOrFde, EhFrame, EndianSlice, RunTimeEndian, UnwindSection};
 use object::{File, FileKind, Object, ObjectSection, ReadRef};
 use samply_debugid::ElfBuildId;
 use samply_object::{debug_id_for_object, relative_address_base};
@@ -306,7 +306,7 @@ impl<'data, T: FileContents + 'static> ElfObjects<'data, T> {
 
     fn make_addr2line_context(
         &self,
-    ) -> Result<addr2line::Context<EndianSlice<'_, RunTimeEndian>>, Error> {
+    ) -> Result<addr2line::Context<crate::dwarf::Relocate<'_, EndianSlice<'_, RunTimeEndian>>>, Error> {
         self.addr2line_context_data.make_context(
             self.file_data,
             &self.object,
@@ -317,7 +317,7 @@ impl<'data, T: FileContents + 'static> ElfObjects<'data, T> {
 
     fn make_dwp_package(
         &self,
-    ) -> Result<Option<addr2line::gimli::DwarfPackage<EndianSlice<'_, RunTimeEndian>>>, Error> {
+    ) -> Result<Option<addr2line::gimli::DwarfPackage<crate::dwarf::Relocate<'_, EndianSlice<'_, RunTimeEndian>>>>, Error> {
         self.addr2line_context_data.make_package(
             self.file_data,
             &self.object,
@@ -339,7 +339,7 @@ impl<T: FileContents + 'static> DwoDwarfMaker<T> for ElfObjects<'_, T> {
     fn add_dwo_and_make_dwarf(
         &self,
         dwo_file_data: T,
-    ) -> Result<Option<Dwarf<EndianSlice<'_, RunTimeEndian>>>, Error> {
+    ) -> Result<Option<crate::symbol_map_object::Dwarf<'_>>, Error> {
         let (data, obj) = self.add_dwo_file_and_make_object(dwo_file_data)?;
         let dwarf = self.addr2line_context_data.make_dwarf_for_dwo(data, &obj)?;
         Ok(Some(dwarf))

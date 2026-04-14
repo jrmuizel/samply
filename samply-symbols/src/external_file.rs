@@ -205,7 +205,7 @@ impl<F: FileContents> ExternalFileInnerTrait for ExternalFileInner<'_, F> {
 }
 
 struct ExternalFileMemberContext<'a> {
-    context: Option<addr2line::Context<gimli::EndianSlice<'a, gimli::RunTimeEndian>>>,
+    context: Option<addr2line::Context<crate::dwarf::Relocate<'a, gimli::EndianSlice<'a, gimli::RunTimeEndian>>>>,
     symbol_addresses: HashMap<&'a [u8], u64>,
 }
 
