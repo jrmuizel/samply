@@ -33,8 +33,8 @@ unsafe fn create_button(
             w::AtomStr::from_str("BUTTON"),
             Some(text),
             style,
-            w::POINT::new(x, y),
-            w::SIZE::new(cw, ch),
+            w::POINT { x, y },
+            w::SIZE { cx: cw, cy: ch },
             Some(parent),
             w::IdMenu::Id(id),
             &w::HINSTANCE::NULL,
@@ -55,8 +55,8 @@ unsafe fn create_static(
             w::AtomStr::from_str("STATIC"),
             Some(text),
             style,
-            w::POINT::new(x, y),
-            w::SIZE::new(cw, ch),
+            w::POINT { x, y },
+            w::SIZE { cx: cw, cy: ch },
             Some(parent),
             w::IdMenu::None,
             &w::HINSTANCE::NULL,
@@ -211,8 +211,8 @@ extern "system" fn window_proc(
                 let new_h = if expanded { EXPANDED_H } else { COLLAPSED_H };
                 let _ = hwnd.SetWindowPos(
                     w::HwndPlace::None,
-                    w::POINT::new(0, 0),
-                    w::SIZE::new(WINDOW_W, new_h),
+                    w::POINT { x: 0, y: 0 },
+                    w::SIZE { cx: WINDOW_W, cy: new_h },
                     co::SWP::NOMOVE | co::SWP::NOZORDER,
                 );
                 return 0;
@@ -397,8 +397,8 @@ pub fn run() {
                 w::AtomStr::from_str(CLASS_NAME),
                 Some("Samply"),
                 co::WS::OVERLAPPED | co::WS::CAPTION | co::WS::SYSMENU | co::WS::VISIBLE,
-                w::POINT::new(CW_USEDEFAULT, CW_USEDEFAULT),
-                w::SIZE::new(WINDOW_W, COLLAPSED_H),
+                w::POINT { x: CW_USEDEFAULT, y: CW_USEDEFAULT },
+                w::SIZE { cx: WINDOW_W, cy: COLLAPSED_H },
                 None,
                 w::IdMenu::None,
                 &hinstance,
