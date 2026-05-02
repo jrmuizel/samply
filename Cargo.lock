@@ -2355,6 +2355,7 @@ dependencies = [
  "wholesym",
  "windows 0.61.3",
  "winres",
+ "winsafe",
  "winver",
 ]
 
@@ -3642,6 +3643,12 @@ checksum = "b68db261ef59e9e52806f688020631e987592bd83619edccda9c47d42cde4f6c"
 dependencies = [
  "toml",
 ]
+
+[[package]]
+name = "winsafe"
+version = "0.0.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4271ae8f63c109d73bc6fcf352b117166757fabcce6a769649ef18303dbf2491"
 
 [[package]]
 name = "winver"

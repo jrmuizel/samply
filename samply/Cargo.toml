@@ -87,6 +87,7 @@ num-derive = "0.4"
 runas = "1.2.0"
 which = "8"
 winver = "1"
+winsafe = { version = "0.0.24", features = ["comctl", "gdi"] }
 
 # etw-reader = { path = "../etw-reader" }
 
