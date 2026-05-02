@@ -13,7 +13,6 @@ mod utility_process;
 mod winutils;
 mod xperf;
 
-#[cfg(gui)]
 pub mod gui;
 
 pub use elevated_helper::run_elevated_helper;
