@@ -9,11 +9,6 @@ const WINDOW_W: i32 = 320;
 const COLLAPSED_H: i32 = 140;
 const EXPANDED_H: i32 = 315;
 
-// Wraps an HWND as a usize so it can be sent across threads.
-// HWND is process-wide and safe to use across threads for PostMessage.
-struct SendHwnd(usize);
-unsafe impl Send for SendHwnd {}
-
 pub fn run() {
     if let Err(e) = run_inner() {
         eprintln!("UI error: {e}");
@@ -164,8 +159,7 @@ fn run_inner() -> w::AnyResult<i32> {
                 *stop_tx.borrow_mut() = Some(tx);
 
                 let output_path = std::env::temp_dir().join("samply-profile.json.gz");
-                let send_hwnd = SendHwnd(wnd.hwnd().ptr() as usize);
-
+                let wnd = wnd.clone();
                 std::thread::spawn(move || {
                     use crate::shared::prop_types::{
                         CoreClrProfileProps, ProfileCreationProps, RecordingMode, RecordingProps,
@@ -211,9 +205,8 @@ fn run_inner() -> w::AnyResult<i32> {
                     if success {
                         *UI_RESULT_PATH.lock().unwrap() = Some(output_path);
                     }
-                    let hwnd = unsafe { w::HWND::from_ptr(send_hwnd.0 as *mut _) };
                     let _ = unsafe {
-                        hwnd.PostMessage(w::msg::WndMsg {
+                        wnd.hwnd().PostMessage(w::msg::WndMsg {
                             msg_id: co::WM::APP,
                             wparam: 0,
                             lparam: 0,

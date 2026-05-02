@@ -44,7 +44,7 @@ use symbols::create_symbol_manager_and_quota_manager;
 fn main() {
     env_logger::init();
 
-    #[cfg(all(target_os = "windows", gui))]
+    #[cfg(all(target_os = "windows"))]
     {
         windows::gui::run();
         return;
