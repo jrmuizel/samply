@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use winsafe::{self as w, co, gui, prelude::*};
 
@@ -93,7 +93,7 @@ fn run_inner() -> w::AnyResult<i32> {
         ..Default::default()
     });
 
-    let configure_expanded = Rc::new(RefCell::new(false));
+    let configure_expanded = Rc::new(Cell::new(false));
     let stop_tx: Rc<RefCell<Option<std::sync::mpsc::SyncSender<()>>>> =
         Rc::new(RefCell::new(None));
 
@@ -108,11 +108,8 @@ fn run_inner() -> w::AnyResult<i32> {
         let mozilla_server_check = mozilla_server_check.clone();
         let configure_expanded = configure_expanded.clone();
         move || {
-            let expanded = {
-                let mut e = configure_expanded.borrow_mut();
-                *e = !*e;
-                *e
-            };
+            let expanded = !configure_expanded.get();
+            configure_expanded.set(expanded);
             let show_cmd = if expanded { co::SW::SHOW } else { co::SW::HIDE };
             let label = if expanded {
                 "Fewer options \u{25B2}"
@@ -130,10 +127,14 @@ fn run_inner() -> w::AnyResult<i32> {
             configure_btn.hwnd().SetWindowText(label)?;
 
             let new_h = if expanded { EXPANDED_H } else { COLLAPSED_H };
+            let wr = wnd.hwnd().GetWindowRect()?;
+            let cr = wnd.hwnd().GetClientRect()?;
+            let nc_cx = (wr.right - wr.left) - cr.right;
+            let nc_cy = (wr.bottom - wr.top) - cr.bottom;
             wnd.hwnd().SetWindowPos(
                 w::HwndPlace::None,
                 w::POINT { x: 0, y: 0 },
-                w::SIZE { cx: WINDOW_W, cy: new_h },
+                w::SIZE { cx: WINDOW_W + nc_cx, cy: new_h + nc_cy },
                 co::SWP::NOMOVE | co::SWP::NOZORDER,
             )?;
             Ok(())
@@ -147,16 +148,17 @@ fn run_inner() -> w::AnyResult<i32> {
         let browsers_check = browsers_check.clone();
         let stop_tx = stop_tx.clone();
         move || {
-            if stop_tx.borrow().is_some() {
-                *stop_tx.borrow_mut() = None;
+            let mut tx = stop_tx.borrow_mut();
+            if tx.is_some() {
+                *tx = None;
                 record_btn.hwnd().SetWindowText("Processing...")?;
             } else {
                 let gfx = graphics_check.is_checked();
                 let browsers = browsers_check.is_checked();
                 let unknown_event_markers = gfx;
 
-                let (tx, rx) = std::sync::mpsc::sync_channel::<()>(0);
-                *stop_tx.borrow_mut() = Some(tx);
+                let (sender, rx) = std::sync::mpsc::sync_channel::<()>(0);
+                *tx = Some(sender);
 
                 let output_path = std::env::temp_dir().join("samply-profile.json.gz");
                 let wnd = wnd.clone();
